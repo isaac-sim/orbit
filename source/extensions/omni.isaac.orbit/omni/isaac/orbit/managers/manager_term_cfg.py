@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from .action_manager import ActionTerm
     from .command_manager import CommandTerm
     from .manager_base import ManagerTermBase
+    from .resampling_manager import ResamplingTerm
 
 
 @configclass
@@ -88,8 +89,8 @@ class CommandTermCfg:
     The class should inherit from :class:`omni.isaac.orbit.managers.command_manager.CommandTerm`.
     """
 
-    resampling_time_range: tuple[float, float] = MISSING
-    """Time before commands are changed [s]."""
+    resampling: dict[str, ResamplingTermCfg] | None = None
+    """Terms used for resampling the command."""
     debug_vis: bool = False
     """Whether to visualize debug information. Defaults to False."""
 
@@ -193,6 +194,22 @@ class RandomizationTermCfg(ManagerTermBaseCfg):
 
     Note:
         This is only used if the mode is ``"interval"``.
+    """
+
+
+##
+# Resampling manager.
+##
+
+
+@configclass
+class ResamplingTermCfg:
+    """Configuration for a resampling term."""
+
+    class_type: type[ResamplingTerm] = MISSING
+    """The associated command term class to use.
+
+    The class should inherit from :class:`omni.isaac.orbit.managers.resampling_manager.ResamplingTerm`.
     """
 
 
