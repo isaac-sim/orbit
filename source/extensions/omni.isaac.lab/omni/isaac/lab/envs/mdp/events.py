@@ -797,6 +797,23 @@ def reset_root_state_from_terrain(
     asset.write_root_velocity_to_sim(velocities, env_ids=env_ids)
 
 
+def reset_joints_to_default(
+    env: ManagerBasedEnv,
+    env_ids: torch.Tensor,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+):
+    """Reset the robot joints to their default positions and velocities."""
+    # extract the used quantities (to enable type-hinting)
+    asset: Articulation = env.scene[asset_cfg.name]
+
+    # get default joint state
+    joint_pos = asset.data.default_joint_pos[env_ids].clone()
+    joint_vel = asset.data.default_joint_vel[env_ids].clone()
+
+    # set into the physics simulation
+    asset.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
+
+
 def reset_joints_by_scale(
     env: ManagerBasedEnv,
     env_ids: torch.Tensor,
@@ -811,23 +828,31 @@ def reset_joints_by_scale(
     """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
+
     # get default joint state
-    joint_pos = asset.data.default_joint_pos[env_ids].clone()
-    joint_vel = asset.data.default_joint_vel[env_ids].clone()
+    joint_pos_all = asset.data.joint_pos[env_ids].clone()
+    joint_vel_all = asset.data.joint_vel[env_ids].clone()
+
+    # isolate relevant joints
+    joint_pos = joint_pos_all[:, asset_cfg.joint_ids]
+    joint_vel = joint_vel_all[:, asset_cfg.joint_ids]
 
     # scale these values randomly
     joint_pos *= math_utils.sample_uniform(*position_range, joint_pos.shape, joint_pos.device)
     joint_vel *= math_utils.sample_uniform(*velocity_range, joint_vel.shape, joint_vel.device)
 
+    joint_pos_all[:, asset_cfg.joint_ids] = joint_pos
+    joint_vel_all[:, asset_cfg.joint_ids] = joint_vel
+
     # clamp joint pos to limits
     joint_pos_limits = asset.data.soft_joint_pos_limits[env_ids]
-    joint_pos = joint_pos.clamp_(joint_pos_limits[..., 0], joint_pos_limits[..., 1])
+    joint_pos_all = joint_pos_all.clamp_(joint_pos_limits[..., 0], joint_pos_limits[..., 1])
     # clamp joint vel to limits
     joint_vel_limits = asset.data.soft_joint_vel_limits[env_ids]
-    joint_vel = joint_vel.clamp_(-joint_vel_limits, joint_vel_limits)
+    joint_vel_all = joint_vel_all.clamp_(-joint_vel_limits, joint_vel_limits)
 
     # set into the physics simulation
-    asset.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
+    asset.write_joint_state_to_sim(joint_pos_all, joint_vel_all, env_ids=env_ids)
 
 
 def reset_joints_by_offset(
@@ -846,22 +871,29 @@ def reset_joints_by_offset(
     asset: Articulation = env.scene[asset_cfg.name]
 
     # get default joint state
-    joint_pos = asset.data.default_joint_pos[env_ids].clone()
-    joint_vel = asset.data.default_joint_vel[env_ids].clone()
+    joint_pos_all = asset.data.joint_pos[env_ids].clone()
+    joint_vel_all = asset.data.joint_vel[env_ids].clone()
+
+    # isolate relevant joints
+    joint_pos = joint_pos_all[:, asset_cfg.joint_ids]
+    joint_vel = joint_vel_all[:, asset_cfg.joint_ids]
 
     # bias these values randomly
     joint_pos += math_utils.sample_uniform(*position_range, joint_pos.shape, joint_pos.device)
     joint_vel += math_utils.sample_uniform(*velocity_range, joint_vel.shape, joint_vel.device)
 
+    joint_pos_all[:, asset_cfg.joint_ids] = joint_pos
+    joint_vel_all[:, asset_cfg.joint_ids] = joint_vel
+
     # clamp joint pos to limits
     joint_pos_limits = asset.data.soft_joint_pos_limits[env_ids]
-    joint_pos = joint_pos.clamp_(joint_pos_limits[..., 0], joint_pos_limits[..., 1])
+    joint_pos_all = joint_pos_all.clamp_(joint_pos_limits[..., 0], joint_pos_limits[..., 1])
     # clamp joint vel to limits
     joint_vel_limits = asset.data.soft_joint_vel_limits[env_ids]
-    joint_vel = joint_vel.clamp_(-joint_vel_limits, joint_vel_limits)
+    joint_vel_all = joint_vel_all.clamp_(-joint_vel_limits, joint_vel_limits)
 
     # set into the physics simulation
-    asset.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
+    asset.write_joint_state_to_sim(joint_pos_all, joint_vel_all, env_ids=env_ids)
 
 
 def reset_nodal_state_uniform(
