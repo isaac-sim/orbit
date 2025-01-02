@@ -22,6 +22,9 @@ export ISAACLAB_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && p
 # Helper functions
 #==
 
+# This is the python version we would like to use.
+PYTHON_VERSION="3.10"
+
 # extract isaac sim path
 extract_isaacsim_path() {
     # Use the sym-link path to Isaac Sim directory
@@ -65,7 +68,7 @@ extract_python_exe() {
             # inside docker, if user installed into system python, we need to use that
             # otherwise, use the python from the kit
             if [ $(python -m pip list | grep -c 'isaacsim-rl') ]; then
-                local python_exe=$(which python)
+                local python_exe=$(which python${PYTHON_VERSION})
             fi
         fi
     fi
@@ -78,6 +81,15 @@ extract_python_exe() {
         echo -e "\t3. Python executable is not available at the default path: ${ISAACLAB_PATH}/_isaac_sim/python.sh" >&2
         exit 1
     fi
+
+    # Get the major.minor version of the python that we just found.
+    python_exe_version=$(${python_exe} -c 'import sys; version=sys.version_info[:3]; print("{0}.{1}".format(*version))')
+    # Check if it is the desired version.
+    if [ "${PYTHON_VERSION}" != ${python_exe_version} ]; then
+        echo -e "[ERROR] Found python version ${python_exe_version}, but wanted ${PYTHON_VERSION}." >&2
+        exit 1
+    fi
+
     # return the result
     echo ${python_exe}
 }
@@ -86,12 +98,14 @@ extract_python_exe() {
 extract_isaacsim_exe() {
     # obtain the isaac sim path
     local isaac_path=$(extract_isaacsim_path)
-    # python executable to use
+    # isaacsim executable to use
     local isaacsim_exe=${isaac_path}/isaac-sim.sh
+    # retrieve the python executable
+    python_exe=$(extract_python_exe)
     # check if there is a python path available
     if [ ! -f "${isaacsim_exe}" ]; then
         # check for installation using Isaac Sim pip
-        if [ $(python -m pip list | grep -c 'isaacsim-rl') -gt 0 ]; then
+        if [ $(${python_exe} -m pip list | grep -c 'isaacsim-rl') -gt 0 ]; then
             # Isaac Sim - Python packages entry point
             local isaacsim_exe="isaacsim omni.isaac.sim"
         else
@@ -130,7 +144,7 @@ setup_conda_env() {
         echo -e "[INFO] Conda environment named '${env_name}' already exists."
     else
         echo -e "[INFO] Creating conda environment named '${env_name}'..."
-        conda create -y --name ${env_name} python=3.10
+        conda create -y --name ${env_name} python=${PYTHON_VERSION}
     fi
 
     # cache current paths for later
