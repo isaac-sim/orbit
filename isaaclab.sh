@@ -64,10 +64,11 @@ extract_python_exe() {
         local python_exe=${ISAACLAB_PATH}/_isaac_sim/python.sh
 
     if [ ! -f "${python_exe}" ]; then
-            # note: we need to check system python for cases such as docker
-            # inside docker, if user installed into system python, we need to use that
-            # otherwise, use the python from the kit
-            if [ $(python -m pip list | grep -c 'isaacsim-rl') ]; then
+            # Next, see if the system provides python. This includes use cases such as docker in docker, or systems
+            # where the default python is not the desired python. In the latter case, python would give us the default
+            # binary even if we are in a virtual environment created with the desired python version.
+            # That version is ok to use if the isaacsim-rl package is installed.
+            if (( $(python${PYTHON_VERSION} -m pip list | grep -c 'isaacsim-rl') )); then
                 local python_exe=$(which python${PYTHON_VERSION})
             fi
         fi
