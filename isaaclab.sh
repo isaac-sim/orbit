@@ -68,7 +68,7 @@ extract_python_exe() {
             # where the default python is not the desired python. In the latter case, python would give us the default
             # binary even if we are in a virtual environment created with the desired python version.
             # That version is ok to use if the isaacsim-rl package is installed.
-            if (( $(python${PYTHON_VERSION} -m pip list | grep -c 'isaacsim-rl') )); then
+            if [ $(python${PYTHON_VERSION} -m pip list | grep -c 'isaacsim-rl') -gt 0 ]; then
                 local python_exe=$(which python${PYTHON_VERSION})
             fi
         fi
