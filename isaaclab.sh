@@ -34,7 +34,7 @@ extract_isaacsim_path() {
         # Use the python executable to get the path
         local python_exe=$(extract_python_exe)
         # Retrieve the path importing isaac sim and getting the environment path
-        if [ $(${python_exe} -m pip list | grep -c 'isaacsim-rl') ]; then
+        if [ $(${python_exe} -m pip list | grep -c 'isaacsim-rl') -gt 0 ]; then
             local isaac_path=$(${python_exe} -c "import isaacsim; import os; print(os.environ['ISAAC_PATH'])")
         fi
     fi
