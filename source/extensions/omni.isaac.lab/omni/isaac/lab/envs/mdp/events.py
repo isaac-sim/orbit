@@ -196,6 +196,13 @@ class randomize_visual_texture_material(ManagerTermBase):
         event_name = cfg.params.get("event_name")
         texture_rotation = cfg.params.get("texture_rotation", (0.0, 0.0))
 
+        # check to make sure replicate_physics is set to False, else raise warning
+        if env.cfg.scene.replicate_physics:
+            raise ValueError(
+                "Unable to randomize visual texture material - ensure InteractiveSceneCfg's replicate_physics parameter"
+                " is set to False."
+            )
+
         # convert from radians to degrees
         texture_rotation = tuple(math.degrees(angle) for angle in texture_rotation)
 
@@ -212,9 +219,7 @@ class randomize_visual_texture_material(ManagerTermBase):
 
         # Create the omni-graph node for the randomization term
         def rep_texture_randomization():
-            prims_group = rep.get.prims(
-                path_pattern=f"{asset_entity.cfg.prim_path}/{body_names_regex}/visuals"
-            )
+            prims_group = rep.get.prims(path_pattern=f"{asset_entity.cfg.prim_path}/{body_names_regex}/visuals")
 
             with prims_group:
                 rep.randomizer.texture(
