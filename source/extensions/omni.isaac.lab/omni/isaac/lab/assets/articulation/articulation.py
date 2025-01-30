@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
+# Copyright (c) 2022-2024, The Isaac Lab Project Developers.
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -97,6 +97,7 @@ class Articulation(AssetBase):
             cfg: A configuration instance.
         """
         super().__init__(cfg)
+        self.cached_body_ids = {}
 
     """
     Properties
@@ -265,6 +266,86 @@ class Articulation(AssetBase):
             tendon_subsets = self.fixed_tendon_names
         # find tendons
         return string_utils.resolve_matching_names(name_keys, tendon_subsets, preserve_order)
+
+    """
+    Operations - Getters.
+    """
+
+    def read_root_state_from_sim(self, env_ids: Sequence[int] | None = None) -> torch.Tensor:
+        if env_ids is None:
+            env_ids = slice(None)
+        root_state = self._data.root_state_w[env_ids].clone()
+        return root_state
+
+    def read_joint_state_from_sim(
+        self, env_ids: Sequence[int] | None = None, joint_ids: Sequence[int] | slice | None = None
+    ) -> dict[str, torch.Tensor]:
+        if env_ids is None:
+            env_ids = slice(None)
+        if joint_ids is None:
+            joint_ids = slice(None)
+        # broadcast env_ids if needed to allow double indexing
+        if env_ids != slice(None) and joint_ids != slice(None):
+            env_ids = env_ids[:, None]
+        position = self._data.joint_pos[env_ids, joint_ids].clone()
+        velocity = self._data.joint_vel[env_ids, joint_ids].clone()
+        position_target = self._data.joint_pos_target[env_ids, joint_ids].clone()
+        velocity_target = self._data.joint_vel_target[env_ids, joint_ids].clone()
+        effort_target = self._data.joint_effort_target[env_ids, joint_ids].clone()
+        return {
+            "position": position,
+            "velocity": velocity,
+            "position_target": position_target,
+            "velocity_target": velocity_target,
+            "effort_target": effort_target,
+        }
+
+    def read_state_from_sim(self, env_ids: Sequence[int] | None = None):
+        """Read the state of the articulation from the simulation.
+        Note: doesn't include external wrench
+
+        Args:
+            env_ids: Environment indices. If None, then all indices are used.
+        """
+        root_state = self.read_root_state_from_sim(env_ids)
+        joint_state = self.read_joint_state_from_sim(env_ids)
+        return {"root_state": root_state, "joint_state": joint_state}
+
+    def read_body_pos_w(
+        self, name_keys: str | Sequence[str], env_ids: Sequence[int] | None = None, preserve_order: bool = False
+    ):
+        """Read the position of the bodies in the articulation from the simulation."""
+        if env_ids is None:
+            env_ids = slice(None)
+        body_ids, _ = self.find_bodies(name_keys, preserve_order)
+        return self._data.body_pos_w[env_ids, body_ids]
+
+    def read_body_quat_w(
+        self, name_keys: str | Sequence[str], env_ids: Sequence[int] | None = None, preserve_order: bool = False
+    ):
+        """Read the orientation of the bodies in the articulation from the simulation."""
+        if env_ids is None:
+            env_ids = slice(None)
+        body_ids, _ = self.find_bodies(name_keys, preserve_order)
+        return self._data.body_quat_w[env_ids, body_ids]
+
+    def read_body_state_w(
+        self, name_keys: str | Sequence[str], env_ids: Sequence[int] | None = None, preserve_order: bool = False
+    ):
+        """Read the state of the bodies in the articulation from the simulation."""
+        if env_ids is None:
+            env_ids = slice(None)
+        body_ids, _ = self.find_bodies(name_keys, preserve_order)
+        return self._data.body_state_w[env_ids, body_ids]
+
+    def read_body_vel_w(
+        self, name_keys: str | Sequence[str], env_ids: Sequence[int] | None = None, preserve_order: bool = False
+    ):
+        """Read the velocity of the bodies in the articulation from the simulation."""
+        if env_ids is None:
+            env_ids = slice(None)
+        body_ids = self.cached_body_ids.get(name_keys, self.find_bodies(name_keys, preserve_order)[0])
+        return self._data.body_vel_w[env_ids, body_ids]
 
     """
     Operations - Writers.
@@ -504,6 +585,23 @@ class Articulation(AssetBase):
         # set into simulation
         self.root_physx_view.set_dof_positions(self._data.joint_pos, indices=physx_env_ids)
         self.root_physx_view.set_dof_velocities(self._data.joint_vel, indices=physx_env_ids)
+
+    def write_state_to_sim(self, state: dict, env_ids: Sequence[int] | None = None):
+        """Write the state of the articulation to the simulation.
+
+        Args:
+            state: A dictionary containing the root and joint states.
+            env_ids: Environment indices. If None, then all indices are used.
+        """
+        # TODO: this is deprecated, modify this to use the new api
+        root_state, joint_state = state["root_state"], state["joint_state"]
+        self.write_root_link_state_to_sim(root_state, env_ids)
+        self.write_joint_state_to_sim(joint_state["position"], joint_state["velocity"], env_ids=env_ids)
+
+        self.set_joint_position_target(joint_state["position_target"], env_ids=env_ids)
+        self.set_joint_velocity_target(joint_state["velocity_target"], env_ids=env_ids)
+        self.set_joint_effort_target(joint_state["effort_target"], env_ids=env_ids)
+        self.write_data_to_sim()
 
     def write_joint_stiffness_to_sim(
         self,

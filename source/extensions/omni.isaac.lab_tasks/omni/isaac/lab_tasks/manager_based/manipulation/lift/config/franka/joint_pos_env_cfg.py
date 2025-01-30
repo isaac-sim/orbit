@@ -4,9 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from omni.isaac.lab.assets import RigidObjectCfg
-from omni.isaac.lab.sensors import FrameTransformerCfg
+from omni.isaac.lab.sensors import CameraCfg, ContactSensorCfg, FrameTransformerCfg, RayCasterCfg, patterns
 from omni.isaac.lab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
-from omni.isaac.lab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
+from omni.isaac.lab.sim.schemas.schemas_cfg import MassPropertiesCfg, RigidBodyPropertiesCfg
 from omni.isaac.lab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 from omni.isaac.lab.utils import configclass
 from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
@@ -60,7 +60,10 @@ class FrankaCubeLiftEnvCfg(LiftEnvCfg):
                 ),
             ),
         )
-
+        self.scene.robot.spawn.activate_contact_sensors = True
+        self.scene.object.spawn.activate_contact_sensors = True
+        # self.scene.table.spawn.activate_contact_sensors = True
+        self.scene.object.spawn.mass_props = MassPropertiesCfg(mass=1)
         # Listens to the required transforms
         marker_cfg = FRAME_MARKER_CFG.copy()
         marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
@@ -78,6 +81,20 @@ class FrankaCubeLiftEnvCfg(LiftEnvCfg):
                     ),
                 ),
             ],
+        )
+        self.scene.contact_sensor = ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/Object",
+            # filter_prim_paths_expr= ["{ENV_REGEX_NS}/Table"],
+            # filter_prim_paths_expr= ["{ENV_REGEX_NS}/Robot/.*finger"],
+            filter_prim_paths_expr=[
+                "{ENV_REGEX_NS}/Table",
+                "{ENV_REGEX_NS}/Robot/.*rightfinger",
+                "{ENV_REGEX_NS}/Robot/.*leftfinger",
+            ],
+            track_air_time=True,
+            track_pose=True,
+            update_period=0.0,
+            debug_vis=True,
         )
 
 

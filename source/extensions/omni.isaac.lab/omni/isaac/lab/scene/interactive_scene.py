@@ -395,6 +395,27 @@ class InteractiveScene:
     Operations.
     """
 
+    def read_state(self, env_ids: Sequence[int] | None = None) -> dict[str, torch.Tensor]:
+        state_dict = {}
+        for asset_family in [
+            self._articulations,
+            self._rigid_objects,
+        ]:
+            for asset_name, asset in asset_family.items():
+                asset_state = asset.read_state_from_sim(env_ids=env_ids)
+                asset_state["root_state"][:, :3] -= self.env_origins
+                state_dict[asset_name] = asset_state
+        return state_dict
+
+    def write_state(self, state_dict: dict[str, torch.Tensor], env_ids: Sequence[int] | None = None):
+        if env_ids is None:
+            tmp_env_ids = slice(None)
+        else:
+            tmp_env_ids = env_ids
+        for asset_name, asset_state in state_dict.items():
+            asset_state["root_state"][:, :3] += self.env_origins[tmp_env_ids]
+            self[asset_name].write_state_to_sim(asset_state, env_ids=env_ids)
+
     def reset(self, env_ids: Sequence[int] | None = None):
         """Resets the scene entities.
 
@@ -549,7 +570,8 @@ class InteractiveScene:
                 return out
             all_keys += list(asset_family.keys())
         # if not found, raise error
-        raise KeyError(f"Scene entity with key '{key}' not found. Available Entities: '{all_keys}'")
+        return None
+        # raise KeyError(f"Scene entity with key '{key}' not found. Available Entities: '{all_keys}'")
 
     """
     Internal methods.
@@ -567,9 +589,22 @@ class InteractiveScene:
         self._global_prim_paths = list()
         # parse the entire scene config and resolve regex
         for asset_name, asset_cfg in self.cfg.__dict__.items():
-            # skip keywords
-            # note: easier than writing a list of keywords: [num_envs, env_spacing, lazy_sensor_update]
-            if asset_name in InteractiveSceneCfg.__dataclass_fields__ or asset_cfg is None:
+            # skip keywords and non-asset configurations
+            if (
+                asset_name in InteractiveSceneCfg.__dataclass_fields__
+                or asset_cfg is None
+                or not isinstance(
+                    asset_cfg,
+                    (
+                        TerrainImporterCfg,
+                        ArticulationCfg,
+                        DeformableObjectCfg,
+                        RigidObjectCfg,
+                        SensorBaseCfg,
+                        AssetBaseCfg,
+                    ),
+                )
+            ):
                 continue
             # resolve regex
             if hasattr(asset_cfg, "prim_path"):

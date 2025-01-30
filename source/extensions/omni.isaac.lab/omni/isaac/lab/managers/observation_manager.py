@@ -215,6 +215,23 @@ class ObservationManager(ManagerBase):
         """
         return self._group_obs_concatenate
 
+    def get_term_cfg(self, group_name, term_name: str) -> RewardTermCfg:
+        """Gets the configuration for the specified term.
+
+        Args:
+            term_name: The name of the reward term.
+
+        Returns:
+            The configuration of the reward term.
+
+        Raises:
+            ValueError: If the term name is not found.
+        """
+        group_term_names = self._group_obs_term_names[group_name]
+        if term_name not in group_term_names:
+            raise ValueError(f"Obs term '{term_name}' not found.")
+        # return the configuration
+        return self._group_obs_term_cfgs[group_name][group_term_names.index(term_name)]
     """
     Operations.
     """

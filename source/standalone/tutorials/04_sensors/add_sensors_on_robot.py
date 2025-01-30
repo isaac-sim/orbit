@@ -27,12 +27,12 @@ from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Tutorial on adding sensors on a robot.")
-parser.add_argument("--num_envs", type=int, default=2, help="Number of environments to spawn.")
+parser.add_argument("--num_envs", type=int, default=1, help="Number of environments to spawn.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
 args_cli = parser.parse_args()
-
+args_cli.enable_cameras = True
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
@@ -90,8 +90,17 @@ class SensorsSceneCfg(InteractiveSceneCfg):
         mesh_prim_paths=["/World/defaultGroundPlane"],
     )
     contact_forces = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/.*_FOOT", update_period=0.0, history_length=6, debug_vis=True
+        prim_path="{ENV_REGEX_NS}/Robot/LF_FOOT",
+        update_period=0.0,
+        history_length=6,
+        debug_vis=True,
+        filter_prim_paths_expr=["/World/defaultGroundPlane/GroundPlane/CollisionPlane"],
+        # filter_prim_paths_expr=["/World/defaultGroundPlane/GroundPlane/*"],
+        # filter_prim_paths_expr=["/World/defaultGroundPlane"],
+        # filter_prim_paths_expr=["/World/defaultGroundPlane/GroundPlane"],
+        # filter_prim_paths_expr=["/World/defaultGroundPlane/Environment/Geometry"],
     )
+    ground.spawn.activate_contact_sensors = True
 
 
 def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
@@ -141,16 +150,18 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
         scene.update(sim_dt)
 
         # print information from the sensors
-        print("-------------------------------")
-        print(scene["camera"])
-        print("Received shape of rgb   image: ", scene["camera"].data.output["rgb"].shape)
-        print("Received shape of depth image: ", scene["camera"].data.output["distance_to_image_plane"].shape)
-        print("-------------------------------")
-        print(scene["height_scanner"])
-        print("Received max height value: ", torch.max(scene["height_scanner"].data.ray_hits_w[..., -1]).item())
-        print("-------------------------------")
+        # print("-------------------------------")
+        # print(scene["camera"])
+        # print("Received shape of rgb   image: ", scene["camera"].data.output["rgb"].shape)
+        # print("Received shape of depth image: ", scene["camera"].data.output["distance_to_image_plane"].shape)
+        # print("-------------------------------")
+        # print(scene["height_scanner"])
+        # print("Received max height value: ", torch.max(scene["height_scanner"].data.ray_hits_w[..., -1]).item())
+        # print("-------------------------------")
         print(scene["contact_forces"])
         print("Received max contact force of: ", torch.max(scene["contact_forces"].data.net_forces_w).item())
+        print(scene["contact_forces"].data.force_matrix_w)
+        print("-------------------------------")
 
 
 def main():

@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import numpy as np
 import torch
 from collections.abc import Callable
 from dataclasses import MISSING
@@ -92,6 +93,9 @@ class ActionTermCfg:
 
     debug_vis: bool = False
     """Whether to visualize debug information. Defaults to False."""
+
+    lows: list[float] = [-np.inf]
+    highs: list[float] = [np.inf]
 
     clip: dict[str, tuple] | None = None
     """Clip range for the action (dict of regex expressions). Defaults to None."""

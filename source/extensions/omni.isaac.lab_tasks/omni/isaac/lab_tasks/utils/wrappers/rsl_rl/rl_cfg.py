@@ -6,6 +6,8 @@
 from dataclasses import MISSING
 from typing import Literal
 
+from omegaconf import DictConfig, OmegaConf
+
 from omni.isaac.lab.utils import configclass
 
 
@@ -27,6 +29,8 @@ class RslRlPpoActorCriticCfg:
 
     activation: str = MISSING
     """The activation function for the actor and critic networks."""
+    
+    rnn_type: str = "lstm"
 
 
 @configclass
@@ -147,3 +151,48 @@ class RslRlOnPolicyRunnerCfg:
 
     If regex expression, the latest (alphabetical order) matching file will be loaded.
     """
+
+    params: DictConfig = OmegaConf.create()
+    """Additional agent parameters."""
+
+    def __post_init__(self):
+        # update the configuration with the additional parameters
+        if self.params is None:
+            self.params = OmegaConf.create()
+        agent_params = self.params.get("agent", OmegaConf.create())
+        self.num_steps_per_env = agent_params.get("num_steps_per_env", self.num_steps_per_env)
+        self.max_iterations = agent_params.get("max_iterations", self.max_iterations)
+        self.save_interval = agent_params.get("save_interval", self.save_interval)
+        self.experiment_name = agent_params.get("experiment_name", self.experiment_name)
+        self.run_name = agent_params.get("run_name", self.run_name)
+        self.logger = agent_params.get("logger", self.logger)
+        self.wandb_project = agent_params.get("wandb_project", self.wandb_project)
+        self.resume = agent_params.get("resume", self.resume)
+        self.load_run = agent_params.get("load_run", self.load_run)
+        self.load_checkpoint = agent_params.get("load_checkpoint", self.load_checkpoint)
+
+        self.empirical_normalization = agent_params.get("empirical_normalization", self.empirical_normalization)
+
+        algorithm_params = agent_params.get("algorithm", OmegaConf.create())
+        self.algorithm.value_loss_coef = algorithm_params.get("value_loss_coef", self.algorithm.value_loss_coef)
+        self.algorithm.use_clipped_value_loss = algorithm_params.get(
+            "use_clipped_value_loss", self.algorithm.use_clipped_value_loss
+        )
+        self.algorithm.clip_param = algorithm_params.get("clip_param", self.algorithm.clip_param)
+        self.algorithm.entropy_coef = algorithm_params.get("entropy_coef", self.algorithm.entropy_coef)
+        self.algorithm.learning_rate = algorithm_params.get("learning_rate", self.algorithm.learning_rate)
+        self.algorithm.gamma = algorithm_params.get("gamma", self.algorithm.gamma)
+        self.algorithm.lam = algorithm_params.get("lam", self.algorithm.lam)
+        self.algorithm.desired_kl = algorithm_params.get("desired_kl", self.algorithm.desired_kl)
+        self.algorithm.num_mini_batches = algorithm_params.get("num_mini_batches", self.algorithm.num_mini_batches)
+        self.algorithm.num_learning_epochs = algorithm_params.get(
+            "num_learning_epochs", self.algorithm.num_learning_epochs
+        )
+
+        policy_params = agent_params.get("policy", OmegaConf.create())
+        self.policy.class_name = policy_params.get("class_name", self.policy.class_name)
+        self.policy.rnn_type = policy_params.get("rnn_type", self.policy.rnn_type)
+        self.policy.init_noise_std = policy_params.get("init_noise_std", self.policy.init_noise_std)
+        self.policy.actor_hidden_dims = policy_params.get("actor_hidden_dims", self.policy.actor_hidden_dims)
+        self.policy.critic_hidden_dims = policy_params.get("critic_hidden_dims", self.policy.critic_hidden_dims)
+        self.policy.activation = policy_params.get("activation", self.policy.activation)

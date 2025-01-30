@@ -102,6 +102,7 @@ class RigidObject(AssetBase):
         # reset external wrench
         self._external_force_b[env_ids] = 0.0
         self._external_torque_b[env_ids] = 0.0
+        self.has_external_wrench = False
 
     def write_data_to_sim(self):
         """Write external wrench to the simulation.
@@ -143,8 +144,72 @@ class RigidObject(AssetBase):
         return string_utils.resolve_matching_names(name_keys, self.body_names, preserve_order)
 
     """
+    Operations - Read from simulation.
+    """
+    # TODO: update it to new apis
+    def read_state_from_sim(self, env_ids: Sequence[int] | None = None) -> dict[str, torch.Tensor]:
+        """Read the state from the simulation."""
+        if env_ids is None:
+            env_ids = slice(None)
+        root_state = self.read_root_state_from_sim(env_ids)
+        return {"root_state": root_state}
+
+    def read_root_state_from_sim(self, env_ids: Sequence[int] | None = None) -> torch.Tensor:
+        if env_ids is None:
+            env_ids = slice(None)
+        root_state = self._data.root_state_w[env_ids]
+        return root_state.clone()
+
+    def read_root_pose_from_sim(self, env_ids: Sequence[int] | None = None) -> torch.Tensor:
+        """Read the root pose from the simulation.
+
+        The root pose comprises of the cartesian position and quaternion orientation in (w, x, y, z).
+
+        Args:
+            env_ids: Environment indices. If None, then all indices are used.
+
+        Returns:
+            Root poses in simulation frame. Shape is (len(env_ids), 7).
+        """
+        # resolve all indices
+        physx_env_ids = env_ids
+        if env_ids is None:
+            env_ids = slice(None)
+            physx_env_ids = self._ALL_INDICES
+        # read from simulation
+        root_poses_xyzw = self.root_physx_view.get_transforms()
+        # convert root quaternion from xyzw to wxyz
+        root_poses_xyzw[:, 3:] = math_utils.convert_quat(root_poses_xyzw[:, 3:], to="wxyz")
+        buffer = self._data.root_state_w[env_ids, :7]
+        assert torch.norm(root_poses_xyzw - buffer) < 1e-6, "Mismatch in root pose."
+        return root_poses_xyzw
+
+    def read_root_velocity_from_sim(self, env_ids: Sequence[int] | None = None) -> torch.Tensor:
+        """Read the root velocity from the simulation.
+
+        Args:
+            env_ids: Environment indices. If None, then all indices are used.
+
+        Returns:
+            Root velocities in simulation frame. Shape is (len(env_ids), 6).
+        """
+        # resolve all indices
+        physx_env_ids = env_ids
+        if env_ids is None:
+            env_ids = slice(None)
+            physx_env_ids = self._ALL_INDICES
+        # read from simulation
+        root_velocities = self.root_physx_view.get_velocities(indices=physx_env_ids)
+        buffer = self._data.root_state_w[env_ids, 7:]
+        assert torch.norm(root_velocities - buffer) < 1e-6, "Mismatch in root velocity."
+        return root_velocities
+
+    """
     Operations - Write to simulation.
     """
+
+    def write_state_to_sim(self, state: dict[str, torch.Tensor], env_ids: Sequence[int] | None = None):
+        self.write_root_state_to_sim(state["root_state"], env_ids)
 
     def write_root_state_to_sim(self, root_state: torch.Tensor, env_ids: Sequence[int] | None = None):
         """Set the root state over selected environment indices into the simulation.
@@ -426,17 +491,17 @@ class RigidObject(AssetBase):
                 " Please ensure that there is only one rigid body in the prim path tree."
             )
 
-        articulation_prims = sim_utils.get_all_matching_child_prims(
-            template_prim_path, predicate=lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI)
-        )
-        if len(articulation_prims) != 0:
-            if articulation_prims[0].GetAttribute("physxArticulation:articulationEnabled").Get():
-                raise RuntimeError(
-                    f"Found an articulation root when resolving '{self.cfg.prim_path}' for rigid objects. These are"
-                    f" located at: '{articulation_prims}' under '{template_prim_path}'. Please disable the articulation"
-                    " root in the USD or from code by setting the parameter"
-                    " 'ArticulationRootPropertiesCfg.articulation_enabled' to False in the spawn configuration."
-                )
+        # articulation_prims = sim_utils.get_all_matching_child_prims(
+        #     template_prim_path, predicate=lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI)
+        # )
+        # if len(articulation_prims) != 0:
+        #     if articulation_prims[0].GetAttribute("physxArticulation:articulationEnabled").Get():
+        #         raise RuntimeError(
+        #             f"Found an articulation root when resolving '{self.cfg.prim_path}' for rigid objects. These are"
+        #             f" located at: '{articulation_prims}' under '{template_prim_path}'. Please disable the articulation"
+        #             " root in the USD or from code by setting the parameter"
+        #             " 'ArticulationRootPropertiesCfg.articulation_enabled' to False in the spawn configuration."
+        #         )
 
         # resolve root prim back into regex expression
         root_prim_path = root_prims[0].GetPath().pathString

@@ -13,10 +13,12 @@ import os
 import re
 import yaml
 
+from omegaconf import DictConfig, OmegaConf
+
 from omni.isaac.lab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
 
 
-def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | object:
+def load_cfg_from_registry(task_name: str, entry_point_key: str, params: dict = None) -> dict | object:
     """Load default configuration given its entry point from the gym registry.
 
     This function loads the configuration object from the gym registry for the given task name.
@@ -72,14 +74,18 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | objec
             config_file = os.path.join(mod_path, file_name)
         # load the configuration
         print(f"[INFO]: Parsing configuration from: {config_file}")
-        with open(config_file, encoding="utf-8") as f:
-            cfg = yaml.full_load(f)
+        cfg = OmegaConf.load(config_file)
+        # with open(config_file, encoding="utf-8") as f:
+        #     cfg = yaml.full_load(f)
     else:
         if callable(cfg_entry_point):
             # resolve path to the module location
             mod_path = inspect.getfile(cfg_entry_point)
             # load the configuration
-            cfg_cls = cfg_entry_point()
+            if params is not None:
+                cfg_cls = cfg_entry_point(params=params)
+            else:
+                cfg_cls = cfg_entry_point()
         elif isinstance(cfg_entry_point, str):
             # resolve path to the module location
             mod_name, attr_name = cfg_entry_point.split(":")
@@ -90,14 +96,18 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | objec
         # load the configuration
         print(f"[INFO]: Parsing configuration from: {cfg_entry_point}")
         if callable(cfg_cls):
-            cfg = cfg_cls()
+            cfg = cfg_cls(params=params)
         else:
             cfg = cfg_cls
     return cfg
 
 
 def parse_env_cfg(
-    task_name: str, device: str = "cuda:0", num_envs: int | None = None, use_fabric: bool | None = None
+    task_name: str,
+    device: str = "cuda:0",
+    num_envs: int | None = None,
+    use_fabric: bool | None = None,
+    params: DictConfig = None,
 ) -> ManagerBasedRLEnvCfg | DirectRLEnvCfg:
     """Parse configuration for an environment and override based on inputs.
 
@@ -117,7 +127,7 @@ def parse_env_cfg(
             environment configuration.
     """
     # load the default configuration
-    cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
+    cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point", params)
 
     # check that it is not a dict
     # we assume users always use a class for the configuration

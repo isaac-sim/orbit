@@ -12,6 +12,8 @@ from copy import deepcopy
 from dataclasses import MISSING, Field, dataclass, field, replace
 from typing import Any, ClassVar
 
+from omegaconf import DictConfig, OmegaConf, ListConfig
+
 from .dict import class_to_dict, update_class_from_dict
 
 _CONFIGCLASS_METHODS = ["to_dict", "from_dict", "replace", "copy", "validate"]
@@ -262,13 +264,15 @@ def _validate(obj: object, prefix: str = "") -> list[str]:
     if type(obj) is type(MISSING):
         missing_fields.append(prefix)
         return missing_fields
-    elif isinstance(obj, (list, tuple)):
+    elif isinstance(obj, (list, tuple, ListConfig)):
         for index, item in enumerate(obj):
             current_path = f"{prefix}[{index}]"
             missing_fields.extend(_validate(item, prefix=current_path))
         return missing_fields
     elif isinstance(obj, dict):
         obj_dict = obj
+    elif isinstance(obj, DictConfig):
+        obj_dict = OmegaConf.to_container(obj)
     elif hasattr(obj, "__dict__"):
         obj_dict = obj.__dict__
     else:

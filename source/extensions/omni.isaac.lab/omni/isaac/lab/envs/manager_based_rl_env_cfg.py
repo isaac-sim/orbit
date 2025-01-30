@@ -5,6 +5,8 @@
 
 from dataclasses import MISSING
 
+from omegaconf import DictConfig, OmegaConf
+
 from omni.isaac.lab.utils import configclass
 
 from .manager_based_env_cfg import ManagerBasedEnvCfg
@@ -78,3 +80,5 @@ class ManagerBasedRLEnvCfg(ManagerBasedEnvCfg):
 
     Please refer to the :class:`omni.isaac.lab.managers.CommandManager` class for more details.
     """
+    params: DictConfig = OmegaConf.create()
+    """Additional environment parameters."""

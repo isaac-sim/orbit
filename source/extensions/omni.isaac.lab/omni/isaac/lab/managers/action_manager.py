@@ -7,7 +7,9 @@
 
 from __future__ import annotations
 
+import gymnasium as gym
 import inspect
+import numpy as np
 import torch
 import weakref
 from abc import abstractmethod
@@ -48,6 +50,11 @@ class ActionTerm(ManagerTermBase):
         """
         # call the base class constructor
         super().__init__(cfg, env)
+        # self.lows = cfg.lows
+        # self.highs = cfg.highs
+        self.act_lows = torch.tensor(cfg.lows, device=self.device)[None]
+        self.act_highs = torch.tensor(cfg.highs, device=self.device)[None]
+
         # parse config to obtain asset to which the term is applied
         self._asset: AssetBase = self._env.scene[self.cfg.asset_name]
 
@@ -200,6 +207,11 @@ class ActionManager(ManagerBase):
         self.cfg.debug_vis = False
         for term in self._terms.values():
             self.cfg.debug_vis |= term.cfg.debug_vis
+        lows = [term.cfg.lows for term in self._terms.values()]
+        highs = [term.cfg.highs for term in self._terms.values()]
+        self.single_action_space = gym.spaces.Box(
+            low=np.concatenate(lows), high=np.concatenate(highs), dtype=np.float32
+        )
 
     def __str__(self) -> str:
         """Returns: A string representation for action manager."""
@@ -292,6 +304,12 @@ class ActionManager(ManagerBase):
         """
         for term in self._terms.values():
             term.set_debug_vis(debug_vis)
+
+    def read_state(self, env_ids: Sequence[int] | None = None) -> dict:
+        action_state = {}
+        for term in self._terms.values():
+            action_state[term.cfg.name] = term.read_state(env_ids)
+        return action_state
 
     def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, torch.Tensor]:
         """Resets the action history.

@@ -12,6 +12,8 @@ import torch
 from collections.abc import Iterable, Mapping
 from typing import Any
 
+from omegaconf import DictConfig, OmegaConf
+
 from .array import TENSOR_TYPE_CONVERSIONS, TENSOR_TYPES
 from .string import callable_to_string, string_to_callable, string_to_slice
 
@@ -41,6 +43,8 @@ def class_to_dict(obj: object) -> dict[str, Any]:
     # convert object to dictionary
     if isinstance(obj, dict):
         obj_dict = obj
+    elif isinstance(obj, DictConfig):
+        obj_dict = OmegaConf.to_container(obj)
     elif isinstance(obj, torch.Tensor):
         # We have to treat torch tensors specially because `torch.tensor.__dict__` returns an empty
         # dict, which would mean that a torch.tensor would be stored as an empty dict. Instead we

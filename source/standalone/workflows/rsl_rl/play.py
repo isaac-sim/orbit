@@ -8,6 +8,12 @@
 """Launch Isaac Sim Simulator first."""
 
 import argparse
+import numpy as np
+from matplotlib import pyplot as plt
+from tqdm import tqdm
+
+from force_tool.utils.data_utils import update_config
+from omegaconf import OmegaConf
 
 from omni.isaac.lab.app import AppLauncher
 
@@ -21,7 +27,7 @@ parser.add_argument("--video_length", type=int, default=200, help="Length of the
 parser.add_argument(
     "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
 )
-parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
+parser.add_argument("--num_envs", type=int, default=1, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
@@ -42,6 +48,7 @@ import gymnasium as gym
 import os
 import torch
 
+from force_tool.visualization.plot_utils import get_img_from_fig, save_numpy_as_mp4
 from rsl_rl.runners import OnPolicyRunner
 
 from omni.isaac.lab.envs import DirectMARLEnv, multi_agent_to_single_agent
@@ -59,9 +66,16 @@ from omni.isaac.lab_tasks.utils.wrappers.rsl_rl import (
 
 def main():
     """Play with RSL-RL agent."""
+    cfg = OmegaConf.create()
+    vv = {"scene.screw_type": "m8_loose", "scene.robot.collision_approximation": "convexHull"}
+    cfg = update_config(cfg, vv)
     # parse configuration
     env_cfg = parse_env_cfg(
-        args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric
+        args_cli.task,
+        device=args_cli.device,
+        num_envs=args_cli.num_envs,
+        use_fabric=not args_cli.disable_fabric,
+        params=cfg,
     )
     agent_cfg: RslRlOnPolicyRunnerCfg = cli_args.parse_rsl_rl_cfg(args_cli.task, args_cli)
 
@@ -114,6 +128,8 @@ def main():
     # reset environment
     obs, _ = env.get_observations()
     timestep = 0
+    record_forces = True
+    forces, frames = [], []
     # simulate environment
     while simulation_app.is_running():
         # run everything in inference mode
@@ -122,10 +138,54 @@ def main():
             actions = policy(obs)
             # env stepping
             obs, _, _, _ = env.step(actions)
+            if record_forces:
+                frame = env.unwrapped.render()
+                frames.append(frame)
+                contact_sensor = env.unwrapped.scene["contact_sensor"]
+                dt = contact_sensor._sim_physics_dt
+                friction_data = contact_sensor.contact_physx_view.get_friction_data(dt)
+                contact_data = contact_sensor.contact_physx_view.get_contact_data(dt)
+                nforce_mag, npoint, nnormal, ndist, ncount, nstarts = contact_data
+                tforce, tpoint, tcount, tstarts = friction_data
+                nforce = nnormal * nforce_mag
+                nforce = torch.sum(nforce, dim=0)
+                tforce = torch.sum(tforce, dim=0)
+                total_force = torch.tensor([nforce.norm(), tforce.norm(), torch.norm(nforce + tforce)])
+                print(nforce, tforce, total_force)
+                print("Total force: ", total_force)
+                forces.append(total_force.cpu().numpy())
         if args_cli.video:
             timestep += 1
             # Exit the play loop after recording one video
             if timestep == args_cli.video_length:
+                counter = 0
+                if record_forces:
+                    wrench_frames = []
+                    plot_target = np.array(forces)
+                    labels = ["Normal Force", "Tangential Force", "Total Force"]
+                    max_val = np.max(plot_target)
+                    min_val = np.min(plot_target)
+                    indices = np.arange(len(plot_target)) + 1
+                    num_plots = plot_target.shape[-1]
+                    plt.plot(indices, plot_target, label=labels)
+                    plt.legend()
+                    plt.show()
+                    plt.close()
+                    for t in tqdm.tqdm(indices):
+                        fig, axs = plt.subplots(1, 1, figsize=(6, 6))
+                        plt.ylim((min_val, max_val))
+                        plt.xlim((0, len(plot_target)))
+                        plt.plot(indices[:t], plot_target[:t], label=labels)
+                        plt.legend()
+                        wrench_frame = get_img_from_fig(fig, width=frame.shape[1] // 2, height=frame.shape[0])
+                        wrench_frames.append(wrench_frame)
+                        plt.close()
+                        # combine frames
+                    frames = np.array(frames)
+                    wrench_frames = np.array(wrench_frames)
+                    combined_frames = np.concatenate([frames, wrench_frames], axis=2)
+                    save_numpy_as_mp4(np.array(combined_frames), "nut.mp4")
+                    frames = []
                 break
 
     # close the simulator
