@@ -81,6 +81,7 @@ Guidelines for modifications:
 * Ryley McCarroll
 * Shafeef Omar
 * Stephan Pleines
+* Virgilio Gómez Lambo
 * Vladimir Fokow
 * Wei Yang
 * Xavier Nal
