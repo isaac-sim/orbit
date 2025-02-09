@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+0.33.15 (2025-02-01)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed redundant body_names assignment in rough_env_cfg.py for H1 robot.
+
 0.33.14 (2025-02-01)
 ~~~~~~~~~~~~~~~~~~~~
 
